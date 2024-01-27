@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # NewPipe2xspf A quick script that I threw together for exporting NewPipe Playlists to VLC
 
 import sqlite3
