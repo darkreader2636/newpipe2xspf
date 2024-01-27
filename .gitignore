@@ -1,1 +1,4 @@
 *.db
+*.db-shm
+*.db-wal
+*.m3u
