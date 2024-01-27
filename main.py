@@ -1,10 +1,13 @@
 import sqlite3
 from typing import Tuple, List
 from functools import wraps
+import xspf
+import xml.dom.minidom
+x = xspf.Xspf()
 
 Playlist = Tuple[int, str, int, int]  # 0:Playlist ID 1:Playlist Name 2:is_thumbnail_permanent 3:thumb_stream_id
 
-Video = Tuple[int ,int,str,str,str, int,str,str ,str,int ,str,int,int]    # 0:URL 1:Title 2:Uploader #3:Playlist ID
+Video = Tuple[int ,int ,str ,str ,str , int ,str ,str ,str ,int ,str ,int ,int]    
 
 class db_wrapper:
     def __init__(self):
@@ -66,18 +69,35 @@ def main():
         print(f"{i}:{pl_list[1]}")
         i = i+1
 
-    selected = crt_list[int(input(">")) -1 ][0]
-    print(selected)
+    input_id = int(input(">")) -1
+    selected = crt_list[input_id][0]
+    x.title = crt_list[input_id][1]
+    x.info = "Exported with NewPipe2XSPF"
 
     mangled = db.get_streams(selected)
-
 
     my_list = []
     for uid in mangled:
         my_list.append(db.get_video(uid[1]))
 
+    i = 1
+
     for vid in my_list:
-        print(f"{vid[0][3]} {vid[0][2]}")
+        tr1 = xspf.Track()
+        tr1.trackNum = str(i)
+        tr1.location = vid[0][2]
+        tr1.title = vid[0][3]
+        tr1.duration = str(vid[0][5]*1000)
+        tr1.creator = vid[0][6]
+        tr1.image = vid[0][8]
+        x.add_track(tr1)
+        i = i+1
+
+    xmldata = x.toXml()
+    m2 = xml.dom.minidom.parseString(xmldata).toprettyxml()
+
+    with open("new.xspf", "w") as f:
+        f.write(m2)
 
     db.close()
 
