@@ -1,13 +1,18 @@
+# NewPipe2xspf A quick script that I threw together for exporting NewPipe Playlists to VLC
+
 import sqlite3
 from typing import Tuple, List
 from functools import wraps
 import xspf
 import xml.dom.minidom
+from datetime import datetime
+import sys
+
 x = xspf.Xspf()
 
 Playlist = Tuple[int, str, int, int]  # 0:Playlist ID 1:Playlist Name 2:is_thumbnail_permanent 3:thumb_stream_id
 
-Video = Tuple[int ,int ,str ,str ,str , int ,str ,str ,str ,int ,str ,int ,int]    
+Video = Tuple[int ,int ,str ,str ,str , int ,str ,str ,str ,int ,str ,int ,int] #Don't ask me look at streams table on newpipe db
 
 class db_wrapper:
     def __init__(self):
@@ -15,8 +20,14 @@ class db_wrapper:
 
     def open(self):
         """Initializes the database"""
-        self.conn = sqlite3.connect('newpipe.db')
-        self.cur = self.conn.cursor()
+        try:
+            self.conn = sqlite3.connect(sys.argv[1])
+            self.cur = self.conn.cursor()
+            self.cur.execute("SELECT * FROM playlists")
+        except:
+            print(f"Error: Cannot find database file")
+            exit(1)
+        
 
     def close(self):
         """Safely closes the database"""
@@ -24,14 +35,6 @@ class db_wrapper:
             self.conn.commit()
             self.cur.close()
             self.conn.close()
-
-    def _commit(func):
-        @wraps(func)
-        def wrapper(self, *args, **kwargs):
-            result = func(self, *args, **kwargs)
-            self.conn.commit()
-            return result
-        return wrapper
 
     def get_playlist(self) -> Playlist:
         self.cur.execute(
@@ -60,43 +63,47 @@ class db_wrapper:
             return result
 
 def main():
-    db = db_wrapper()
-    i = 1
+    db = db_wrapper() #Connect to DB
 
-    print("sel list:\n")
+    print("Select Local Playlist Name:\n")
     crt_list = db.get_playlist()
-    for pl_list in crt_list:
-        print(f"{i}:{pl_list[1]}")
-        i = i+1
+    for pl_list in enumerate(crt_list):
+        print(f"{pl_list[0]+1}: {pl_list[1][1]}")
+    print("0: Exit")
 
     input_id = int(input(">")) -1
+
+    if(input_id == -1):
+        exit(0)
+
     selected = crt_list[input_id][0]
     x.title = crt_list[input_id][1]
-    x.info = "Exported with NewPipe2XSPF"
+    x.info = "Exported with NewPipe2xspf"
 
-    mangled = db.get_streams(selected)
+    vid_list = []
 
-    my_list = []
-    for uid in mangled:
-        my_list.append(db.get_video(uid[1]))
+    for uid in db.get_streams(selected):
+        vid_list.append(db.get_video(uid[1]))
 
-    i = 1
-
-    for vid in my_list:
+    for vid in enumerate(vid_list):
         tr1 = xspf.Track()
-        tr1.trackNum = str(i)
-        tr1.location = vid[0][2]
-        tr1.title = vid[0][3]
-        tr1.duration = str(vid[0][5]*1000)
-        tr1.creator = vid[0][6]
-        tr1.image = vid[0][8]
+        tr1.trackNum = str(vid[0] + 1)
+        vid = vid[1][0]
+        tr1.location = vid[2]
+        tr1.title = vid[3]
+        tr1.duration = str(vid[5]*1000)
+        tr1.creator = vid[6]
+        tr1.image = vid[8]
+        tr1.annotation = vid[2]
         x.add_track(tr1)
-        i = i+1
 
     xmldata = x.toXml()
     m2 = xml.dom.minidom.parseString(xmldata).toprettyxml()
 
-    with open("new.xspf", "w") as f:
+    time = datetime.now().strftime("%H.%M_%d-%b-%Y")
+    filename = f"{crt_list[input_id][1].replace(' ', '_')}_{time}.xspf"
+
+    with open(filename, "w") as f:
         f.write(m2)
 
     db.close()
